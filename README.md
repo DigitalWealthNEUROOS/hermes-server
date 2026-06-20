@@ -1,35 +1,32 @@
-# HERMES SERVER - Complete Stack
+# HERMES + OPENCLAW - Dual Agent Workspace
 
-Full AI agent server with storage, security, mail, and monitoring.
+## What This Is
+A dual-agent workspace where Hermes and OpenClaw AI agents work together
+to generate revenue, build projects, and grow a GitHub account.
 
-## Quick Start
+## Agents
+- **Hermes Agent** (Nous Research) - Primary agent, self-improving
+- **OpenClaw** - Secondary agent, specialized tasks
 
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com | sh
+## Workspace Structure
+-  - Hermes agent files
+-  - OpenClaw agent files
+-  - Shared knowledge and communication
+-  - Active projects
+-  - Course content for sale
+-  - Marketing content
 
-# Deploy stack
-docker compose up -d
+## Money Generation
+1. AI Agent Course Sales (OpenClaw community)
+2. AI Freelancing (Fiverr/Upwork)
+3. E-Commerce Store
+4. Content Creation
 
-# Check status
-docker ps
-```
+## Infrastructure
+- GitHub Codespace (4 CPU, 16GB RAM, 32GB disk)
+- Docker Compose (MinIO, MariaDB, PostgreSQL, Redis, Directus)
+- GitHub Actions (24/7 cron jobs)
+- Device WiFi server (local access)
 
-## Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Nginx | 80/443 | Reverse proxy |
-| MinIO | 9000/9001 | Object storage (S3) |
-| MariaDB | 3306 | Relational database |
-| PostgreSQL | 5432 | Knowledge graph + pgvector |
-| Redis | 6379 | Cache + sessions |
-| Maddy | 25/587/143/993 | Mail server |
-| Nextcloud | 8080 | File sync |
-| OpenVAS | 9392 | Vulnerability scanner |
-| Suricata | - | IDS/IPS |
-
-## Architecture
-
-All services run in Docker containers with persistent volumes.
-Data stored in `/data/` directory.
+## GitHub
+https://github.com/DigitalWealthNEUROOS/hermes-server
