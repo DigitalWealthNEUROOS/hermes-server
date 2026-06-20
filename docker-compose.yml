@@ -19,7 +19,6 @@ services:
       MYSQL_ROOT_PASSWORD: hermes_db_2026
     volumes:
       - /home/codespace/hermes/data/mariadb:/var/lib/mysql
-      - /home/codespace/hermes/sql/mariadb-init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
       - hermes-net
@@ -31,7 +30,6 @@ services:
       POSTGRES_PASSWORD: hermes_pg_2026
     volumes:
       - /home/codespace/hermes/data/postgres:/var/lib/postgresql/data
-      - /home/codespace/hermes/sql/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
       - hermes-net
@@ -46,29 +44,21 @@ services:
     networks:
       - hermes-net
 
-  nextcloud:
-    image: nextcloud:latest
-    container_name: hermes-nextcloud
+  directus:
+    image: directus/directus:latest
+    container_name: hermes-directus
     environment:
-      MYSQL_HOST: mariadb
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud
-      MYSQL_PASSWORD: nextcloud_2026
-      NEXTCLOUD_ADMIN_USER: hermes
-      NEXTCLOUD_ADMIN_PASSWORD: hermes_admin_2026
-    volumes:
-      - /home/codespace/hermes/data/nextcloud:/var/www/html
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: directus
+      DB_USER: postgres
+      DB_PASSWORD: hermes_pg_2026
+      SECRET: hermes_secret_2026
+      ADMIN_EMAIL: hermes@localhost
+      ADMIN_PASSWORD: hermes_admin_2026
     depends_on:
-      - mariadb
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  openvas:
-    image: mikesplain/openvas:latest
-    container_name: hermes-openvas
-    volumes:
-      - /home/codespace/hermes/data/openvas:/data
+      - postgres
     restart: unless-stopped
     networks:
       - hermes-net
