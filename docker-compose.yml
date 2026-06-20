@@ -1,83 +1,25 @@
-#!/bin/bash
-# ============================================================
-# HERMES SERVER - Complete Docker Compose Stack
-# ============================================================
-# This file defines the complete Hermes server architecture
-# with all storage, security, and email services.
-#
-# To use: Copy this to a real Linux server with Docker and run:
-#   docker compose -f docker-compose.yml up -d
-#
-# Services included:
-# - MinIO (S3-compatible object storage)
-# - MariaDB (relational database)
-# - PostgreSQL + pgvector (knowledge graph + vector search)
-# - Redis (cache + session state)
-# - Maddy (mail server)
-# - Wazuh (SIEM security monitoring)
-# - Suricata (IDS/IPS)
-# - Zeek (network analysis)
-# - OpenVAS (vulnerability scanner)
-# - Nextcloud (file sync + share)
-# - Nginx (reverse proxy)
-# ============================================================
-
-version: '3.8'
-
 services:
-  # ============================================
-  # REVERSE PROXY
-  # ============================================
-  nginx:
-    image: nginx:alpine
-    container_name: hermes-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/certs:/etc/nginx/certs
-    depends_on:
-      - minio
-      - nextcloud
-      - wazuh
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  # ============================================
-  # OBJECT STORAGE
-  # ============================================
   minio:
     image: minio/minio:latest
     container_name: hermes-minio
-    command: server /data --address ":9000" --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    command: server /data --address ':9000' --console-address ':9001'
     environment:
       MINIO_ROOT_USER: hermes
       MINIO_ROOT_PASSWORD: hermes_minio_2026
     volumes:
-      - minio-data:/data
+      - /home/codespace/hermes/data/minio:/data
     restart: unless-stopped
     networks:
       - hermes-net
 
-  # ============================================
-  # DATABASES
-  # ============================================
   mariadb:
     image: mariadb:11
     container_name: hermes-mariadb
     environment:
       MYSQL_ROOT_PASSWORD: hermes_db_2026
-      MYSQL_DATABASE: hermes_storage
     volumes:
-      - mariadb-data:/var/lib/mysql
-      - ./sql/mariadb-init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "3306:3306"
+      - /home/codespace/hermes/data/mariadb:/var/lib/mysql
+      - /home/codespace/hermes/sql/mariadb-init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
       - hermes-net
@@ -87,12 +29,9 @@ services:
     container_name: hermes-postgres
     environment:
       POSTGRES_PASSWORD: hermes_pg_2026
-      POSTGRES_DB: hermes_knowledge
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./sql/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
+      - /home/codespace/hermes/data/postgres:/var/lib/postgresql/data
+      - /home/codespace/hermes/sql/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
       - hermes-net
@@ -102,251 +41,38 @@ services:
     container_name: hermes-redis
     command: redis-server --requirepass hermes_redis_2026
     volumes:
-      - redis-data:/data
-    ports:
-      - "6379:6379"
+      - /home/codespace/hermes/data/redis:/data
     restart: unless-stopped
     networks:
       - hermes-net
 
-  # ============================================
-  # MAIL SERVER
-  # ============================================
-  maddy:
-    image: foxcpp/maddy:latest
-    container_name: hermes-maddy
-    volumes:
-      - ./maddy/maddy.conf:/data/maddy.conf
-      - maddy-data:/data
-    ports:
-      - "25:25"
-      - "143:143"
-      - "587:587"
-      - "993:993"
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  # ============================================
-  # SECURITY - SIEM
-  # ============================================
-  wazuh-manager:
-    image: wazuh/wazuh-manager:4.9.0
-    container_name: hermes-wazuh-manager
-    hostname: wazuh-manager
-    ports:
-      - "1514:1514/udp"
-      - "1515:1515"
-      - "55000:55000"
-    environment:
-      - INDEXER_URL=https://wazuh-indexer:9200
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword
-      - FILEBEAT_SSL_VERIFICATION_MODE=full
-      - SSL_CERTIFICATE_AUTHORITIES=/etc/ssl/certs/root-ca.pem
-      - SSL_CERTIFICATE=/etc/ssl/certs/filebeat.pem
-      - SSL_KEY=/etc/ssl/certs/filebeat-key.pem
-    volumes:
-      - wazuh-api-configuration:/var/ossec/api/configuration
-      - wazuh-etc:/var/ossec/etc
-      - wazuh-logs:/var/ossec/logs
-      - wazuh-queue:/var/ossec/queue
-      - wazuh-var-multigroups:/var/ossec/var/multigroups
-      - wazuh-integrations:/var/ossec/integrations
-      - wazuh-active-response:/var/ossec/active-response/bin
-      - wazuh-agentless:/var/ossec/agentless
-      - wazuh-wodles:/var/ossec/wodles
-      - ./wazuh/wazuh_api_rolling_certificates.tar:/tmp/wazuh_api_rolling_certificates.tar
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  wazuh-indexer:
-    image: wazuh/wazuh-indexer:4.9.0
-    container_name: hermes-wazuh-indexer
-    hostname: wazuh-indexer
-    environment:
-      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
-    volumes:
-      - wazuh-indexer-data:/var/lib/wazuh-indexer
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  wazuh-dashboard:
-    image: wazuh/wazuh-dashboard:4.9.0
-    container_name: hermes-wazuh-dashboard
-    hostname: wazuh-dashboard
-    ports:
-      - "5601:5601"
-    environment:
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword
-      - WAZUH_API_URL=https://wazuh-manager
-      - API_USERNAME=wazuh-wui
-      - API_PASSWORD=MyS3cr37P450w0rd
-    depends_on:
-      - wazuh-indexer
-      - wazuh-manager
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  # ============================================
-  # SECURITY - IDS/IPS
-  # ============================================
-  suricata:
-    image: jasonish/suricata:latest
-    container_name: hermes-suricata
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_NICE
-    command: -i wlan0
-    volumes:
-      - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml
-      - suricata-logs:/var/log/suricata
-      - suricata-rules:/var/lib/suricata
-    restart: unless-stopped
-
-  # ============================================
-  # SECURITY - NETWORK ANALYSIS
-  # ============================================
-  zeek:
-    image: zeek/zeek:latest
-    container_name: hermes-zeek
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    command: -i wlan0
-    volumes:
-      - zeek-logs:/usr/local/zeek/logs
-      - ./zeek/zeekctl.cfg:/usr/local/zeek/etc/zeekctl.cfg
-    restart: unless-stopped
-
-  # ============================================
-  # SECURITY - VULNERABILITY SCANNER
-  # ============================================
-  openvas:
-    image: mikesplain/openvas:latest
-    container_name: hermes-openvas
-    ports:
-      - "443:443"
-    volumes:
-      - openvas-data:/data
-    environment:
-      - PASSWORD=hermes_openvas_2026
-    restart: unless-stopped
-    networks:
-      - hermes-net
-
-  # ============================================
-  # FILE SYNC + SHARE
-  # ============================================
   nextcloud:
     image: nextcloud:latest
     container_name: hermes-nextcloud
-    ports:
-      - "8080:80"
     environment:
-      - MYSQL_HOST=mariadb
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-      - MYSQL_PASSWORD=hermes_nc_2026
-      - NEXTCLOUD_ADMIN_USER=hermes
-      - NEXTCLOUD_ADMIN_PASSWORD=hermes_nc_admin_2026
+      MYSQL_HOST: mariadb
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: nextcloud_2026
+      NEXTCLOUD_ADMIN_USER: hermes
+      NEXTCLOUD_ADMIN_PASSWORD: hermes_admin_2026
     volumes:
-      - nextcloud-data:/var/www/html
-      - /data/hermes:/var/www/html/data/hermes/files
+      - /home/codespace/hermes/data/nextcloud:/var/www/html
     depends_on:
       - mariadb
     restart: unless-stopped
     networks:
       - hermes-net
 
-  # ============================================
-  # HERMES AGENT (main application)
-  # ============================================
-  hermes-agent:
-    build:
-      context: ./hermes
-      dockerfile: Dockerfile
-    container_name: hermes-agent
-    environment:
-      - HERMES_HOME=/root/.hermes
-      - DATABASE_URL=mysql://root:hermes_db_2026@mariadb/hermes_storage
-      - KNOWLEDGE_URL=postgresql://postgres:hermes_pg_2026@postgres/hermes_knowledge
-      - REDIS_URL=redis://:hermes_redis_2026@redis:6379
-      - MINIO_URL=http://minio:9000
-      - MINIO_ACCESS_KEY=hermes
-      - MINIO_SECRET_KEY=hermes_minio_2026
+  openvas:
+    image: mikesplain/openvas:latest
+    container_name: hermes-openvas
     volumes:
-      - hermes-data:/root/.hermes
-      - /data/hermes:/data/hermes
-    depends_on:
-      - mariadb
-      - postgres
-      - redis
-      - minio
+      - /home/codespace/hermes/data/openvas:/data
     restart: unless-stopped
     networks:
       - hermes-net
 
-# ============================================
-# VOLUMES
-# ============================================
-volumes:
-  minio-data:
-    driver: local
-  mariadb-data:
-    driver: local
-  postgres-data:
-    driver: local
-  redis-data:
-    driver: local
-  maddy-data:
-    driver: local
-  wazuh-api-configuration:
-    driver: local
-  wazuh-etc:
-    driver: local
-  wazuh-logs:
-    driver: local
-  wazuh-queue:
-    driver: local
-  wazuh-var-multigroups:
-    driver: local
-  wazuh-integrations:
-    driver: local
-  wazuh-active-response:
-    driver: local
-  wazuh-agentless:
-    driver: local
-  wazuh-wodles:
-    driver: local
-  wazuh-indexer-data:
-    driver: local
-  suricata-logs:
-    driver: local
-  suricata-rules:
-    driver: local
-  zeek-logs:
-    driver: local
-  openvas-data:
-    driver: local
-  nextcloud-data:
-    driver: local
-  hermes-data:
-    driver: local
-
-# ============================================
-# NETWORKS
-# ============================================
 networks:
   hermes-net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
